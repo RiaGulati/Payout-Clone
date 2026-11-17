@@ -10,7 +10,10 @@ import { ONBOARDING_ROUTES } from '@/constants/onboarding';
 import { Radius } from '@/constants/theme';
 import { Typography } from '@/constants/typography';
 
-/** The mockup shows 8 placeholder tiles (4 rows × 2); real brand logos are TBD. */
+/**
+ * The mockup shows 8 placeholder tiles (4 rows × 2); real brand logos are TBD. The selected ids are
+ * saved to `profiles.brands`, so once real logos land, use each brand's `settlements.brand_key` as its id.
+ */
 const BRANDS = Array.from({ length: 8 }, (_, i) => ({ id: `brand-${i + 1}`, label: 'Insert Logo Here' }));
 
 export default function BrandsScreen() {
@@ -28,7 +31,9 @@ export default function BrandsScreen() {
     <OnboardingLayout
       background="welcome"
       progress={222 / 365}
-      onPress={() => router.push(ONBOARDING_ROUTES.payoutMethod)}
+      onPress={() =>
+        router.push({ pathname: ONBOARDING_ROUTES.payoutMethod, params: { brands: [...selected].join(',') } })
+      }
       contentStyle={styles.content}>
       <OnboardingTitle style={styles.title}>
         {'Which brands have\nyou purchased from in the past 5 years?'}

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppHeader } from '@/components/app/app-header';
+import { ErrorState, LoadingState } from '@/components/app/load-state';
 import { CategoryChips } from '@/components/home/category-chips';
 import { FeaturedCard } from '@/components/home/featured-card';
 import { HomeMenu, type HomeMenuItem } from '@/components/home/home-menu';
@@ -14,11 +15,9 @@ import { SettlementRow } from '@/components/home/settlement-row';
 import { UpgradeBanner } from '@/components/home/upgrade-banner';
 import { Ui } from '@/constants/colors';
 import { Typography } from '@/constants/typography';
-import {
-  FEATURED_SETTLEMENTS,
-  LISTED_SETTLEMENTS,
-  type CategoryFilter,
-} from '@/data/settlements';
+import type { CategoryFilter, Settlement } from '@/data/settlements';
+import { useRemoteData } from '@/hooks/use-remote-data';
+import { fetchSettlements } from '@/lib/api';
 
 const MENU_LINKS: Record<Exclude<HomeMenuItem, 'how-it-works'>, string> = {
   privacy: 'Privacy Policy',
@@ -34,9 +33,12 @@ export default function HomeScreen() {
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [menuOpen, setMenuOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const { state, retry } = useRemoteData(fetchSettlements, undefined);
 
-  const settlements =
-    category === 'all' ? LISTED_SETTLEMENTS : LISTED_SETTLEMENTS.filter((s) => s.category === category);
+  const all: Settlement[] = state.status === 'ready' ? state.data : [];
+  const featured = all.filter((s) => s.featured);
+  const listed = all.filter((s) => !s.featured);
+  const settlements = category === 'all' ? listed : listed.filter((s) => s.category === category);
 
   const handleMenuSelect = (item: HomeMenuItem) => {
     setMenuOpen(false);
@@ -51,48 +53,52 @@ export default function HomeScreen() {
     <View style={styles.screen}>
       <AppHeader title="Settlements" onMenuPress={() => setMenuOpen(true)} />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.featuredHeader}>
-          <Text style={styles.sectionTitle}>Featured</Text>
-          <View style={styles.legend}>
-            <View style={styles.legendItem}>
-              <SettlementBadgeIcon kind="no-proof" />
-              <Text style={styles.legendLabel}>No Proof</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <SettlementBadgeIcon kind="uncapped" />
-              <Text style={styles.legendLabel}>Uncapped</Text>
+      {state.status === 'loading' && <LoadingState />}
+      {state.status === 'error' && <ErrorState onRetry={retry} />}
+      {state.status === 'ready' && (
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.featuredHeader}>
+            <Text style={styles.sectionTitle}>Featured</Text>
+            <View style={styles.legend}>
+              <View style={styles.legendItem}>
+                <SettlementBadgeIcon kind="no-proof" />
+                <Text style={styles.legendLabel}>No Proof</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <SettlementBadgeIcon kind="uncapped" />
+                <Text style={styles.legendLabel}>Uncapped</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={375 + 17}
-          decelerationRate="fast"
-          style={styles.featuredScroller}
-          contentContainerStyle={styles.featuredContent}>
-          {FEATURED_SETTLEMENTS.map((s) => (
-            <FeaturedCard key={s.id} settlement={s} onPress={() => openSettlement(s.id)} />
-          ))}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={375 + 17}
+            decelerationRate="fast"
+            style={styles.featuredScroller}
+            contentContainerStyle={styles.featuredContent}>
+            {featured.map((s) => (
+              <FeaturedCard key={s.id} settlement={s} onPress={() => openSettlement(s.id)} />
+            ))}
+          </ScrollView>
+
+          <View style={styles.inset}>
+            <UpgradeBanner onUpgrade={() => router.push('/upgrade')} />
+          </View>
+
+          <CategoryChips value={category} onChange={setCategory} />
+
+          <View style={[styles.inset, styles.list]}>
+            {settlements.map((s) => (
+              <SettlementRow key={s.id} settlement={s} onPress={() => openSettlement(s.id)} />
+            ))}
+            {settlements.length === 0 && (
+              <Text style={styles.emptyLabel}>No settlements in this category yet.</Text>
+            )}
+          </View>
         </ScrollView>
-
-        <View style={styles.inset}>
-          <UpgradeBanner onUpgrade={() => router.push('/upgrade')} />
-        </View>
-
-        <CategoryChips value={category} onChange={setCategory} />
-
-        <View style={[styles.inset, styles.list]}>
-          {settlements.map((s) => (
-            <SettlementRow key={s.id} settlement={s} onPress={() => openSettlement(s.id)} />
-          ))}
-          {settlements.length === 0 && (
-            <Text style={styles.emptyLabel}>No settlements in this category yet.</Text>
-          )}
-        </View>
-      </ScrollView>
+      )}
 
       <HomeMenu visible={menuOpen} onClose={() => setMenuOpen(false)} onSelect={handleMenuSelect} />
       <HowItWorksModal visible={infoOpen} onClose={() => setInfoOpen(false)} />

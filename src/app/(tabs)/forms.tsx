@@ -5,15 +5,31 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
+import { ErrorState, LoadingState } from '@/components/app/load-state';
 import { FormRow } from '@/components/forms/form-row';
 import { FormsEmptyState } from '@/components/forms/forms-empty-state';
 import { FormsHeader } from '@/components/forms/forms-header';
 import { StatusFilter } from '@/components/forms/status-filter';
 import { Ui } from '@/constants/colors';
-import { FORM_STATUSES, savedForms, type FormStatus } from '@/data/forms';
+import { FORM_STATUSES, type FormStatus, type SavedForm } from '@/data/forms';
+import { useRemoteData } from '@/hooks/use-remote-data';
+import { fetchForms } from '@/lib/api';
 
 export default function FormsScreen() {
   const [status, setStatus] = useState<FormStatus | null>(null);
+  // Live: new forms and status changes in Supabase refresh the list.
+  const { state, retry } = useRemoteData(fetchForms, undefined, { realtimeTable: 'forms' });
+
+  if (state.status !== 'ready') {
+    return (
+      <View style={styles.screen}>
+        <FormsHeader fileCount={0} />
+        {state.status === 'loading' ? <LoadingState /> : <ErrorState onRetry={retry} />}
+      </View>
+    );
+  }
+
+  const savedForms: SavedForm[] = state.data;
   const visible = status ? savedForms.filter((f) => f.status === status) : savedForms;
   const hasForms = savedForms.length > 0;
   const statusLabel = FORM_STATUSES.find((s) => s.value === status)?.label;

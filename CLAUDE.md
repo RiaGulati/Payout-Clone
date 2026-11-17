@@ -182,8 +182,11 @@ export default function ClassActionsScreen() {
 </Modal>
 ```
 
-- **Mock data:** typed in `src/data/` (`settlements.ts`, `claims.ts`, `forms.ts`). Image fields are `ImageSource` set via `require`. Empty states are toggled with an exported `EMPTY` flag (`claims.ts`, `forms.ts`).
-- **Frontend only:** no backend. Links without a destination show `Alert` placeholders.
+- **Data:** Supabase (Postgres + anonymous auth + Realtime). Schema and RLS live in `supabase/schema.sql`; `npm run seed` (`backend/seed.ts`, secret key) fills `settlements`.
+  - Screens never call Supabase directly: `src/lib/api.ts` reads/writes and maps rows into the UI types in `src/data/` (`Settlement`, `WalletData`, `SavedForm`). `src/lib/supabase.ts` holds the client and `sessionReady()`.
+  - Load with `useRemoteData(fetcher, arg, { realtimeTable })` (`src/hooks/use-remote-data.ts`) and render `LoadingState` / `ErrorState` (`src/components/app/load-state.tsx`).
+  - Brand logos are local, keyed by `settlements.brand_key` in `src/data/brand-logos.ts`.
+  - Links without a destination show `Alert` placeholders.
 - **Accessibility:** set `accessibilityRole` on every pressable (`button`, `tab`, `radio`, `checkbox`), `accessibilityState` for selection, and `accessibilityLabel` on image-only controls.
 
 ---
@@ -307,7 +310,9 @@ src/
     app/                     # app chrome: header, tab bar
     onboarding/ paywall/ home/ settlement/ wallet/ forms/   # feature folders
   constants/                 # colors, typography, theme, onboarding
-  data/                      # typed mock data
+  data/                      # UI types, filter lists, brand logos
+  hooks/                     # useRemoteData
+  lib/                       # supabase client, api (all reads/writes)
 assets/images/               # grouped assets (see §5)
 ```
 
@@ -325,7 +330,7 @@ assets/images/               # grouped assets (see §5)
 3. Map values to `Palette` / `Brand` / `Ui` / `Gradients` / `Typography` / `Spacing` / `Radius`, adding any missing tokens to the constants files.
 4. Reuse the shared and feature components above. New pieces go in `src/components/<feature>/`.
 5. Download assets locally (§5) and reference them with `require`.
-6. Add or extend mock data in `src/data/` and wire up the interactions.
+6. Add columns/queries in `supabase/schema.sql` + `src/lib/api.ts` (and the seed) as needed, and wire up the interactions.
 7. Verify:
    - `npx tsc --noEmit`
    - `npx expo lint`

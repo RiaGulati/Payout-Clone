@@ -10,10 +10,12 @@ const SEND = require('@/assets/images/settlement/send.svg');
 type SettlementActionsProps = {
   onShare: () => void;
   onGetStarted: () => void;
+  /** True while the claim is being saved: disables "Get Started" and changes its label. */
+  busy?: boolean;
 };
 
 /** Settlement Details (172:400, panel 176:467): "Tell your friends" (secondary) and "Get Started" (primary). */
-export function SettlementActions({ onShare, onGetStarted }: SettlementActionsProps) {
+export function SettlementActions({ onShare, onGetStarted, busy = false }: SettlementActionsProps) {
   const insets = useSafeAreaInsets();
   return (
     // Panel is 211pt tall in the frame: 22 top + 56 + 7 + 56 + 70 bottom (34pt home indicator + 36).
@@ -27,9 +29,11 @@ export function SettlementActions({ onShare, onGetStarted }: SettlementActionsPr
       </Pressable>
       <Pressable
         accessibilityRole="button"
+        accessibilityState={{ busy, disabled: busy }}
+        disabled={busy}
         onPress={onGetStarted}
-        style={({ pressed }) => [styles.button, styles.primary, pressed && styles.pressed]}>
-        <Text style={[styles.label, styles.primaryLabel]}>Get Started</Text>
+        style={({ pressed }) => [styles.button, styles.primary, (pressed || busy) && styles.pressed]}>
+        <Text style={[styles.label, styles.primaryLabel]}>{busy ? 'Starting…' : 'Get Started'}</Text>
       </Pressable>
     </View>
   );

@@ -1,9 +1,10 @@
 // Figma: "Settlement Details" (172:400).
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Alert, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 
+import { ErrorState, LoadingState } from '@/components/app/load-state';
 import { HowItWorksModal } from '@/components/home/how-it-works-modal';
 import { SettlementBadge } from '@/components/home/settlement-badge';
 import { SettlementActions } from '@/components/settlement/settlement-actions';
@@ -11,14 +12,60 @@ import { SettlementNavBar } from '@/components/settlement/settlement-nav-bar';
 import { Ui } from '@/constants/colors';
 import { Radius } from '@/constants/theme';
 import { Typography } from '@/constants/typography';
-import { formatDue, getSettlement } from '@/data/settlements';
+import { formatDue, type Settlement } from '@/data/settlements';
+import { useRemoteData } from '@/hooks/use-remote-data';
+import { fetchSettlement, startClaim } from '@/lib/api';
 
 const CALENDAR = require('@/assets/images/settlement/calendar.svg');
 
 export default function SettlementDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const settlement = getSettlement(id);
+  const { state, retry } = useRemoteData(fetchSettlement, id);
   const [infoOpen, setInfoOpen] = useState(false);
+
+  const navBar = (
+    <SettlementNavBar title="Settlement Details" onBack={() => router.back()} onInfo={() => setInfoOpen(true)} />
+  );
+
+  if (state.status !== 'ready' || !state.data) {
+    return (
+      <View style={styles.screen}>
+        {navBar}
+        <View style={styles.statusWrap}>
+          {state.status === 'loading' && <LoadingState />}
+          {state.status === 'error' && <ErrorState onRetry={retry} />}
+          {state.status === 'ready' && (
+            <ErrorState
+              message="This settlement is no longer available."
+              retryLabel="Go back"
+              onRetry={() => router.back()}
+            />
+          )}
+        </View>
+        <HowItWorksModal visible={infoOpen} onClose={() => setInfoOpen(false)} />
+      </View>
+    );
+  }
+
+  return (
+    <SettlementDetails
+      settlement={state.data}
+      navBar={navBar}
+      infoOpen={infoOpen}
+      onCloseInfo={() => setInfoOpen(false)}
+    />
+  );
+}
+
+type SettlementDetailsProps = {
+  settlement: Settlement;
+  navBar: ReactNode;
+  infoOpen: boolean;
+  onCloseInfo: () => void;
+};
+
+function SettlementDetails({ settlement, navBar, infoOpen, onCloseInfo }: SettlementDetailsProps) {
+  const [submitting, setSubmitting] = useState(false);
 
   const handleShare = async () => {
     try {
@@ -30,17 +77,27 @@ export default function SettlementDetailsScreen() {
     }
   };
 
-  const handleGetStarted = () => {
-    Alert.alert('Get Started', `Claim filing for “${settlement.title}” is coming soon.`);
+  const handleGetStarted = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    const result = await startClaim(settlement.id);
+    setSubmitting(false);
+
+    if (result.status === 'started') {
+      Alert.alert('Claim started', 'Track its progress in your Wallet.', [
+        { text: 'OK', style: 'cancel' },
+        { text: 'Go to Wallet', onPress: () => router.navigate('/wallet') },
+      ]);
+    } else if (result.status === 'duplicate') {
+      Alert.alert('Already claimed', 'You’ve already started this claim. Find it in your Wallet.');
+    } else {
+      Alert.alert('Couldn’t start your claim', 'Check your connection and try again.');
+    }
   };
 
   return (
     <View style={styles.screen}>
-      <SettlementNavBar
-        title="Settlement Details"
-        onBack={() => router.back()}
-        onInfo={() => setInfoOpen(true)}
-      />
+      {navBar}
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
@@ -77,8 +134,8 @@ export default function SettlementDetailsScreen() {
         </View>
       </ScrollView>
 
-      <SettlementActions onShare={handleShare} onGetStarted={handleGetStarted} />
-      <HowItWorksModal visible={infoOpen} onClose={() => setInfoOpen(false)} />
+      <SettlementActions onShare={handleShare} onGetStarted={handleGetStarted} busy={submitting} />
+      <HowItWorksModal visible={infoOpen} onClose={onCloseInfo} />
     </View>
   );
 }
@@ -90,6 +147,10 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Ui.white,
+  },
+  statusWrap: {
+    flex: 1,
+    justifyContent: 'center',
   },
   content: {
     paddingLeft: 22,

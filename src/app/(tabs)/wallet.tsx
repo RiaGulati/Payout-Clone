@@ -4,15 +4,29 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppHeader } from '@/components/app/app-header';
+import { ErrorState, LoadingState } from '@/components/app/load-state';
 import { ClaimsSection } from '@/components/wallet/claims-section';
 import { PayoutCard } from '@/components/wallet/payout-card';
 import { PayoutInfoModal } from '@/components/wallet/payout-info-modal';
 import { Ui } from '@/constants/colors';
-import { walletData } from '@/data/claims';
+import { useRemoteData } from '@/hooks/use-remote-data';
+import { fetchWallet } from '@/lib/api';
 
 export default function WalletScreen() {
   const [infoVisible, setInfoVisible] = useState(false);
-  const { estimatedPayout, claimedCount, notifiedCount, claims } = walletData;
+  // Live: a claim filed elsewhere or a status change in Supabase refreshes the list.
+  const { state, retry } = useRemoteData(fetchWallet, undefined, { realtimeTable: 'claims' });
+
+  if (state.status !== 'ready') {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Wallet" />
+        {state.status === 'loading' ? <LoadingState /> : <ErrorState onRetry={retry} />}
+      </View>
+    );
+  }
+
+  const { estimatedPayout, claimedCount, notifiedCount, claims } = state.data;
   const inProgress = claims.filter((c) => c.status === 'in-progress');
   const finished = claims.filter((c) => c.status === 'finished');
 
